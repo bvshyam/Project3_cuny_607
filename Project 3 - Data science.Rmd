@@ -1,0 +1,38 @@
+---
+title: "Project 3 - Data Science jobs"
+author: "Shyam BV"
+date: "October 17, 2016"
+output: html_document
+---
+
+```{r library, eval=TRUE}
+
+
+library(jsonlite)
+library("RJSONIO")
+library("httr")
+
+
+library(XML)
+
+library(gdata)
+library(RCurl)
+
+```
+
+
+
+```{r loaddata,eval=TRUE}
+url <- url("http://www.indeed.com/jobs?q=data+scientist&l=United+States")
+
+indeedurl <- htmlParse("http://www.indeed.com/jobs?q=data+scientist&l=United+States")
+
+location <- xpathSApply(indeedurl,"//span[@class='location']",xmlValue)
+
+
+xpathSApply(indeedurl,"//a[@class='jobtitle turnstileLink']",xmlGetAttr,'href')
+
+
+
+```
+
