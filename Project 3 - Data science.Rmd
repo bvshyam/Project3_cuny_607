@@ -7,32 +7,23 @@ output: html_document
 
 ```{r library, eval=TRUE}
 
-
-library(jsonlite)
-library("RJSONIO")
-library("httr")
-
-
-library(XML)
-
-library(gdata)
 library(RCurl)
+library(dplyr)
+library(utils)
+library(lubridate)
 
 ```
 
 
 
 ```{r loaddata,eval=TRUE}
-url <- url("http://www.indeed.com/jobs?q=data+scientist&l=United+States")
 
-indeedurl <- htmlParse("http://www.indeed.com/jobs?q=data+scientist&l=United+States")
-
-location <- xpathSApply(indeedurl,"//span[@class='location']",xmlValue)
+ny_crime <- read.csv("Data/NYPD_7_Major_Felony_Incidents.csv", header = TRUE, sep="," , stringsAsFactors = FALSE,na.strings = c("",NA,"n/a","N/A","NA")) %>% select(Offense, `Day.of.Week`,`Occurrence.Date`,`Occurrence.Month`,`Occurrence.Hour`,Borough,`Location.1`)
 
 
-xpathSApply(indeedurl,"//a[@class='jobtitle turnstileLink']",xmlGetAttr,'href')
 
-
+sf_crime <- read.csv("Data/SFPD_Incidents_-_from_1_January_2003.csv", header = TRUE, sep="," , stringsAsFactors = FALSE,na.strings = c("",NA,"n/a","N/A","NA")) %>% select(Category,DayOfWeek,Date,Time,PdDistrict,Location) %>% mutate(month = months(as.Date(sf_crime$Date,"%m/%d/%Y")))
+                                          
 
 ```
 
