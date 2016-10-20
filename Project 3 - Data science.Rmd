@@ -6,11 +6,13 @@ output: html_document
 ---
 
 ```{r library, eval=TRUE}
-
+#install.packages("data.tree")
 library(RCurl)
 library(dplyr)
 library(utils)
 library(lubridate)
+library(jsonlite)
+library(data.tree)
 
 ```
 
@@ -20,10 +22,20 @@ library(lubridate)
 
 ny_crime <- read.csv("Data/NYPD_7_Major_Felony_Incidents.csv", header = TRUE, sep="," , stringsAsFactors = FALSE,na.strings = c("",NA,"n/a","N/A","NA")) %>% select(Offense, `Day.of.Week`,`Occurrence.Date`,`Occurrence.Month`,`Occurrence.Hour`,Borough,`Location.1`)
 
+#CSV Load
 
+sf_crime <- read.csv("Data/sfo_dec2015.csv", header = TRUE, sep="," , stringsAsFactors = FALSE,na.strings = c("",NA,"n/a","N/A","NA")) %>% select(Category,DayOfWeek,Date,Time,PdDistrict,Location) %>% mutate(month = months(as.Date(Date,"%m/%d/%Y")))
+                  
+                        
+#JSON Load
 
-sf_crime <- read.csv("Data/SFPD_Incidents_-_from_1_January_2003.csv", header = TRUE, sep="," , stringsAsFactors = FALSE,na.strings = c("",NA,"n/a","N/A","NA")) %>% select(Category,DayOfWeek,Date,Time,PdDistrict,Location) %>% mutate(month = months(as.Date(sf_crime$Date,"%m/%d/%Y")))
-                                          
+sf_crim.json <- fromJSON("Data/sfo_dec2015.json")
+
+sf_crimedata <-sf_crim.json[['data']]
+
+sf_crime.df <- data.frame(Category = sapply(sf_crimedata,function(x) x[[10]]), DayOfWeek = sapply(sf_crimedata,function(x) x[[12]]), Date = sapply(sf_crimedata,function(x) x[[13]]), Time =  sapply(sf_crimedata,function(x) x[[14]]),PdDistrict = sapply(sf_crimedata,function(x) x[[15]]),Location1= sapply(sf_crimedata,function(x) x[[18]]),Location2= sapply(sf_crimedata,function(x) x[[19]]))
+
+# , month=months(as.Date(sapply(sf_crimedata,function(x) x[[13]]),"%Y%m/%d/%Y"))
 
 ```
 
