@@ -3,7 +3,6 @@
 
 DROP TABLE IF EXISTS crimedata;
 
-DROP TABLE IF EXISTS crimetype;
 DROP TABLE IF EXISTS monthtab;
 DROP TABLE IF EXISTS daytab;
 DROP TABLE IF EXISTS city;
@@ -31,7 +30,7 @@ LINES TERMINATED BY '\r\n'
 
 CREATE TABLE daytab 
 (
-  daynum varchar(20) NOT NULL,
+  daynum int NOT NULL,
   dayofweek varchar(200) NOT NULL,
   PRIMARY KEY (dayofweek)
 );
@@ -65,24 +64,6 @@ LINES TERMINATED BY '\r\n'
 ;
 
 
--- TABLE CRIMETYPE
-
-CREATE TABLE crimetype 
-(
-  offensecode varchar(20) NOT NULL,
-  offensedesc varchar(200) NOT NULL,
-  PRIMARY KEY (offensecode)
-);
-
-LOAD DATA INFILE 'F:/data/crime/crimetype.csv' 
-INTO TABLE crimetype
-FIELDS TERMINATED BY ',' 
-ENCLOSED BY '"'
-LINES TERMINATED BY '\r\n'
-(offensecode, offensedesc)
-;
-
-
 
 -- TABLE CRIMEDATA
 
@@ -92,8 +73,8 @@ CREATE TABLE crimedata
   citycode varchar(20) NOT NULL,
   offenseid varchar(200) NOT NULL,
   offense varchar(500) NOT NULL,
-  offensedate date NOT NULL,
-  offensetime timestamp NOT NULL, 
+  offenselocaldate date NOT NULL,
+  offenselocaltime time NOT NULL, 
   dayofweek varchar(200) NOT NULL,
   offensehour int,
   offensemonth varchar(5) NOT NULL,
@@ -111,23 +92,16 @@ CREATE TABLE crimedata
     
 );
 
--- commented, to be cleaned up later
--- LOAD DATA INFILE 'F:/data/crime/crimedata.csv' 
--- INTO TABLE crimedata
--- FIELDS TERMINATED BY ',' 
--- ENCLOSED BY '"'
--- LINES TERMINATED BY '\r\n'
--- (movieid, moviename, genre, yearreleased, leadcast, dirrectedby, countryreleased, language, watchtimemin, certificate, awards, info)
--- ;
 
 
 
-SELECT * FROM crimetype;
-SELECT COUNT(*) FROM crimetype;
 SELECT * FROM crimedata;
 SELECT COUNT(*) FROM crimedata;
 SELECT * FROM daytab;
 SELECT COUNT(*) FROM daytab;
 SELECT * FROM monthtab;
 SELECT COUNT(*) FROM monthtab;
+SELECT * FROM city;
+SELECT COUNT(*) FROM city;
+
 
