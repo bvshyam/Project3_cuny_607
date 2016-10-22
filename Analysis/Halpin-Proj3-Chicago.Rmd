@@ -1,0 +1,60 @@
+library(tidyr)
+library(dplyr)
+library(stringr)
+library(lubridate)
+
+chicago <- read.csv("https://raw.githubusercontent.com/bvshyam/Project3_cuny_607/master/Data/chicago_dec2015.csv", header=TRUE, sep=",", stringsAsFactors = FALSE,na.strings = c("",NA,"n/a","N/A","NA"))
+
+
+table(chicago2$Primary.Type)
+
+groupedCrimes <- crimes %>% group_by(Primary.Type, Arrest) %>% summarise(Total=n())
+
+arrestOnly <- filter(groupedCrimes, Arrest %in% "true")
+
+arrestOnly
+
+noArrest <- filter(groupedCrimes, Arrest %in% "false")
+
+noArrest
+
+groupedCrimesByLocation <- crimes %>% group_by(Primary.Type, Arrest, Location.Description) %>% summarise(Total=n())
+
+arrestOnly <- filter(groupedCrimesByLocation, Arrest %in% "true")
+
+arrestOnly
+
+arrestOnly[which.max(arrestOnly$Total),]
+
+noArrest <- filter(groupedCrimesByLocation, Arrest %in% "false")
+
+noArrest
+
+noArrest[which.max(noArrest$Total),]
+
+
+crimeDates <- as.Date(chicago$Date, "%m/%d/%Y")
+chicagoTimes <- unlist(str_extract_all(chicago$Date, pattern="\\d{1,2}\\:\\d{1,2}\\:\\d{1,2}"))
+partOfDay <- unlist(str_extract_all(chicago$Date, pattern="[[:alpha:]]{2}"))
+dayOfWeek <- wday(crimeDates, label = TRUE)
+crimeMonth <- month(crimeDates, label = TRUE)
+crimeTimeStamp <- hms(chicagoTimes)
+crimeHr <- hour(crimeTimeStamp)
+crimeMin <- minute(crimeTimeStamp)
+crimeSec <- second(crimeTimeStamp)
+
+
+cleanedData <- data.frame(
+chicago$Primary.Type,
+chicago$Arrest,
+chicago$District,
+chicago$Location.Description,
+crimeDates,
+dayOfWeek,
+crimeMonth,
+crimeHr,
+crimeMin,
+crimeSec,
+chicago$Latitude,
+chicago$Longitude
+)
