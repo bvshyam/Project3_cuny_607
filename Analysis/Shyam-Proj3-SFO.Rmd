@@ -34,7 +34,6 @@ sf_crime.df <- data.frame(Category = sapply(sf_crimedata,function(x) x[[10]]), D
 
 
 
-
 #CSV Load
 
 sf_crime <- read.csv("Data/sfo_dec2015.csv", header = TRUE, sep="," , stringsAsFactors = FALSE,na.strings = c("",NA,"n/a","N/A","NA")) %>% select(Category,DayOfWeek,Date,Time,PdDistrict,Resolution,Location) %>% mutate(month = months(as.Date(Date,"%m/%d/%Y")))
