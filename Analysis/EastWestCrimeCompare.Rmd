@@ -1,0 +1,205 @@
+---
+title: "607 Project 3 : Crime Compare"
+author: "Kumudini Bhave, Shyam BV, Mark Halpin"
+date: "October 18, 2016"
+output:
+  html_document:
+    toc: yes
+---
+
+
+********
+
+# **Crime DataSet Study : Crime Data Study , a comparison between East Coast city , New York City (NYC) and West Coast city San Francisco (SFO)**
+
+********
+
+## Summary
+
+This is an R Markdown document for providing documentation for performing **Data Exploration And Analysis Of the Crime  DataSet of publicly available crime data for New York City and San Francisco**
+
+********
+
+## R Code :
+
+### Loading Packages Used
+
+
+```{r warning=FALSE, comment=FALSE, message=FALSE, tidy=TRUE, tidy.opts=list(width.cutoff=150)}
+knitr::opts_chunk$set(message = FALSE, echo=TRUE)
+
+# Library for string manipulation/regex operations
+library(stringr)
+# Library for data display in tabular format
+library(DT)
+# Library to read text file
+library(RCurl)
+# Library to gather (to long format) and spread (to wide format) data, to tidy data
+library(tidyr)
+# Library to filter, transform data
+library(dplyr)
+# Library to plot
+library(ggplot2)
+library(knitr)
+
+# Library for loading data
+library(jsonlite)
+library(XML)
+library(xml2)
+
+```
+
+********
+
+### Loading DataSet
+
+Loading the flight status data, Reading text file from the GitHub location with Header as True
+
+https://raw.githubusercontent.com/bvshyam/Project3_cuny_607/master/Data/NYC_15.csv
+
+ 
+```{r  tidy=TRUE, tidy.opts=list(width.cutoff=80),echo=TRUE}
+
+
+################################ XML #######################################
+
+nycxml.giturl <- "https://raw.githubusercontent.com/bvshyam/Project3_cuny_607/master/Data/nyc_dec2015.xml"
+nycdataxml <- xmlRoot(xmlParse(getURL(nycxml.giturl))) # get XML file contents
+class(nycdataxml)
+xmlName(nycdataxml)
+xmlSize(nycdataxml)
+nycdataxml[1]
+xmlSize(nycdataxml[1])
+xmlSize(nycdataxml[[1]])
+
+nycdataxmlDFchk <- xmlToDataFrame(nycdataxml[[1]])
+nrow(nycdataxmlDFchk)
+head(nycdataxmlDFchk)
+
+# select columns from the dataset for study
+
+nyc_crimedataDF <- nycdataxmlDFchk %>% select(objectid, occurrence_date,day_of_week,occurrence_month,occurrence_hour,offense, borough)
+
+
+# mutate to strip time
+
+nyc_crimedataDF <- nyc_crimedataDF %>% 
+     mutate(occurrence_time = str_extract(occurrence_date,"[[:digit:]]{2}:[[:digit:]]{2}:[[:digit:]]{2}")) %>% mutate(occurrence_date = str_extract(occurrence_date, "[[:digit:]]{4}-[[:digit:]]{2}-[[:digit:]]{2}"))
+     
+
+# mutate to add Week# from (0 - 52)
+
+nyc_crimedataDF <- nyc_crimedataDF %>% mutate(week = strftime(as.POSIXlt(occurrence_date),format="%W"))
+
+datatable(nyc_crimedataDF)
+
+
+#x<-head(nyc_crimedataDF)
+
+#xm <- x %>% mutate(occurrence_time = str_extract(occurrence_date,"[[:digit:]]{2}:[[:digit:]]{2}:[[:digit:]]{2}")) %>% #mutate(occurrence_date = str_extract(occurrence_date, "[[:digit:]]{4}-[[:digit:]]{2}-[[:digit:]]{2}"))
+     
+
+```
+
+
+********
+
+
+
+# new df <- group by bourough and offense
+group by borough andwithin borough, group by offense
+
+ 
+```{r  tidy=TRUE, tidy.opts=list(width.cutoff=80),echo=TRUE}
+
+     nyc_crimedata_boroughDF <- nyc_crimedataDF %>% select( borough, offense) %>% group_by(borough, offense) %>%  dplyr::summarise(total =n())
+
+datatable(nyc_crimedata_boroughDF)
+```
+
+********
+# new df <- group by week# and offense
+
+```{r  tidy=TRUE, tidy.opts=list(width.cutoff=80),echo=TRUE}
+
+nyc_crimedata_weekDF <- nyc_crimedataDF %>% select( week, offense) %>% group_by(week, offense) %>%  dplyr::summarise(total =n())
+
+datatable(nyc_crimedata_weekDF)
+
+```
+
+# new df <- group by hour# and offense
+
+```{r  tidy=TRUE, tidy.opts=list(width.cutoff=80),echo=TRUE}
+
+nyc_crimedata_hourDF <- nyc_crimedataDF %>% select( occurrence_hour, offense) %>% group_by(occurrence_hour, offense) %>%  dplyr::summarise(total =n()) %>% arrange(occurrence_hour)
+
+nyc_crimedata_hourrateDF <- nyc_crimedata_hourDF %>% select( occurrence_hour, total) %>%  group_by(occurrence_hour)  %>%  dplyr::summarise(offensecount = sum(total))%>% arrange(occurrence_hour)
+
+datatable(nyc_crimedata_hourDF)
+
+```
+
+
+
+
+# Plots
+
+Hour vs Offense
+```{r warning=FALSE, comment=FALSE, message=FALSE, tidy=TRUE, tidy.opts=list(width.cutoff=120), fig.width=10,fig.height=10}
+
+ggplot(nyc_crimedata_hourrateDF, aes(y=nyc_crimedata_hourrateDF$offensecount, x= nyc_crimedata_hourrateDF$occurrence_hour )) + geom_point() + ggtitle("Hypothesis : Offense Vs Hour Of Day") +    scale_y_discrete(name = "Offense") + scale_x_datetime
+
+ggplot(nyc_crimedata_hourDF, aes(y=nyc_crimedata_hourDF$total, x= nyc_crimedata_hourDF$occurrence_hour)) + geom_point(aes(color=offense)) + ggtitle("Hypothesis : Offense Vs Hour Of Day") + facet_grid(~offense) + xlab("Hour Of Day") +  ylab("Offense") #+scale_x_continuous(limits=c(0,24))
+
+
+my$Time <- as.POSIXct(my$Time, format="%H:%M:%S")
+
+```
+
+
+
+
+
+# Day vs hour 
+
+
+
+# Day vs Offense
+
+```{r warning=FALSE, comment=FALSE, message=FALSE, tidy=TRUE, tidy.opts=list(width.cutoff=120), fig.width=10,fig.height=10}
+
+
+nyc_crimedata_dayDF <- nyc_crimedataDF %>% select( day_of_week, offense) %>% group_by(day_of_week, offense) %>%  dplyr::summarise(daywisetotal =n())
+
+datatable(nyc_crimedata_dayDF)
+
+ggplot(nyc_crimedata_dayDF, aes(y=daywisetotal, x= day_of_week, fill= offense)) + xlab("Day Of Week") + ylab("Offense Count") + ggtitle("Hypothesis : Offense Vs Day Of Week") + geom_bar(stat="identity", position=position_dodge()) + scale_fill_brewer(palette="OrRd")
+
+
+
+
+```
+
+# hour vs borough
+
+
+
+
+
+# offense vs borough
+
+```{r warning=FALSE, comment=FALSE, message=FALSE, tidy=TRUE, tidy.opts=list(width.cutoff=120), fig.width=10,fig.height=10}
+
+
+ggplot(nyc_crimedata_boroughDF, aes(x=nyc_crimedata_boroughDF$borough, y= nyc_crimedata_boroughDF$total, fill= nyc_crimedata_boroughDF$offense)) + ggtitle("Offense In NYC Boroughs") + geom_bar(colour="black",stat='identity') + coord_flip() + xlab("Boroughs") +  ylab("Offense") + scale_fill_brewer(palette="RdPu")
+
+
+library(ggmap)
+mymap <- get_map(location = "New York", maptype = "roadmap")
+ggmap(mymap)
+
+
+
+```
+
