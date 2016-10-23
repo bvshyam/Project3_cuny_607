@@ -1,14 +1,16 @@
+library(plyr)
 library(tidyr)
 library(dplyr)
 library(stringr)
 library(lubridate)
+library(RMySQL)
 
 chicago <- read.csv("https://raw.githubusercontent.com/bvshyam/Project3_cuny_607/master/Data/chicago_dec2015.csv", header=TRUE, sep=",", stringsAsFactors = FALSE,na.strings = c("",NA,"n/a","N/A","NA"))
 
 
-table(chicago2$Primary.Type)
+table(chicago$Primary.Type)
 
-groupedCrimes <- crimes %>% group_by(Primary.Type, Arrest) %>% summarise(Total=n())
+groupedCrimes <- chicago %>% group_by(Primary.Type, Arrest) %>% summarise(Total=n())
 
 arrestOnly <- filter(groupedCrimes, Arrest %in% "true")
 
@@ -18,7 +20,7 @@ noArrest <- filter(groupedCrimes, Arrest %in% "false")
 
 noArrest
 
-groupedCrimesByLocation <- crimes %>% group_by(Primary.Type, Arrest, Location.Description) %>% summarise(Total=n())
+groupedCrimesByLocation <- chicago %>% group_by(Primary.Type, Arrest, Location.Description) %>% summarise(Total=n())
 
 arrestOnly <- filter(groupedCrimesByLocation, Arrest %in% "true")
 
@@ -58,3 +60,45 @@ crimeSec,
 chicago$Latitude,
 chicago$Longitude
 )
+
+cleanedData <- rename(cleanedData, c(
+  "chicago.Primary.Type" = "offense", 
+  "chicago.Arrest" = "wasArrestMade", 
+  "chicago.District" = "district", 
+  "chicago.Location.Description"="offensearea", 
+  "crimeDates" = "offenselocaldate", 
+  "dayOfWeek" = "dayofweek",
+  "crimeMonth" = "offensemonth",
+  "crimeHr" =  "offensehour",
+  "crimeMin" = "minute",
+  "crimeSec" = "seconds",
+  "chicago.Latitude" = "latitude",
+  "chicago.Longitude" = "longitude"
+))
+
+cleanedData$offenseid <- chicago$ID
+cleanedData$offenselocaltime <- chicagoTimes
+
+
+dataForDB <- data.frame (
+cityCode = "CHI",
+offenseid = cleanedData$offenseid,
+offense = cleanedData$offense,
+offenselocaldate =cleanedData$offenselocaldate,
+offenselocaltime = cleanedData$offenselocaltime,
+offensehour= cleanedData$offensehour,
+offensemonth= cleanedData$offensemonth,
+offensearea = cleanedData$offensearea
+)
+
+dataForDB$dayofweek <- weekdays(as.Date(crimeDates))
+
+dataForDB <- dataForDB[c(1,2,3,4,5,9,6,7,8)]
+
+conn <- dbConnect(MySQL(),
+                 user = 'mygroup',
+                 password = 'mygroup#01',
+                 host = 'mygroup.c5rotlbjbl71.us-east-1.rds.amazonaws.com',
+                 dbname = 'crimedb')
+
+#dbWriteTable(conn, value = dataForDB, name = "crimedata", row.names=F, append = TRUE ) 
