@@ -62,7 +62,7 @@ sf_crime_db <- select(sf_crime_changes,offenseid=offenseid,offense=Category,offe
 
 
 
-```{r  tidy=TRUE, tidy.opts=list(width.cutoff=80),echo=TRUE}
+```{r datainsert,eval=TRUE}
 
 # Arrange the columns for database insert
 
@@ -80,12 +80,8 @@ dbWriteTable(conn, value = sf_crime_db_1, name = "crimedata", row.names=F, appen
 
 
 
-
 ```{r analysiss,eval=TRUE}
 sfo_crime_hour <- sf_crime_db %>% select( offensehour, offense) %>% group_by(offensehour, offense) %>%  summarise(total =n()) 
-
-
-ggplot(sfo_crimedata_hourDF, aes(y=sfo_crimedata_hourDF$total, x= sfo_crimedata_hourDF$offensehour)) + geom_point(aes(color=offense)) + ggtitle("Hour vs Offense")  + xlab("Hour") +  ylab("Offense")
 
 
 p <- ggplot(sfo_crimedata_hourDF, aes(y=sfo_crime_hour$total, x= sfo_crime_hour$offensehour)) + geom_line(aes(color=offense)) + ggtitle("Hour vs Offense")  + xlab("Hour") +  ylab("Offense")
@@ -125,14 +121,14 @@ mostcrimes <- table(sf_crime_changes$DayOfWeek,sf_crime_changes$Category) %>% da
 topcrimes <- mostcrimes[(mostcrimes$summary/sum(mostcrimes$summary))> .05,] %>% data.frame()
 
 
-
-#Webscrapping 
-
-
-df <- read.csv('https://raw.githubusercontent.com/plotly/datasets/master/2011_february_us_airport_traffic.csv')
+```
 
 
 
+
+```{r mapanalysiss,eval=TRUE}
+
+#Map
 
 sf_crime.map <- data.frame(offenseid = sapply(sf_crimedata,function(x) x[[1]]), Category = sapply(sf_crimedata,function(x) x[[10]]), DayOfWeek = sapply(sf_crimedata,function(x) x[[12]]), Date = as.Date(substr(sapply(sf_crimedata,function(x) x[[13]]),1,10),"%Y-%m-%d"),Time =  sapply(sf_crimedata,function(x) x[[14]]),PdDistrict = sapply(sf_crimedata,function(x) x[[15]]),Location1= sapply(sf_crimedata,function(x) x[[19]]), Location2= sapply(sf_crimedata,function(x) x[[18]]), month = month.abb[month(as.Date(substr(sapply(sf_crimedata,function(x) x[[13]]),1,10),"%Y-%m-%d"))]   )
 
@@ -164,19 +160,7 @@ plot_geo(sf_crime.map, lat = ~Location1, lon = ~Location2) %>%
   )
 
 
-plot_ly(type="choropleth",locations=c('CA'),locationmode='USA-States',colorscale='Viridis',z=c(10,20,40)) %>% layout(geo=list(scope='usa')) 
 
-
-
-plot_geo(df, lat = ~lat, lon = ~long) %>%
-  add_markers(
-    text = ~paste(airport, city, state, paste("Arrivals:", cnt), sep = "<br />"),
-    color = ~cnt, symbol = I("square"), size = I(8), hoverinfo = "text"
-  ) %>%
-  colorbar(title = "Incoming flights<br />February 2011") %>%
-  layout(
-    title = 'Most trafficked US airports<br />(Hover for airport)', geo = g
-  )
 
 
 ```
