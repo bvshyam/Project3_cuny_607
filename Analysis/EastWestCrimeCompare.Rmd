@@ -355,15 +355,109 @@ Loading crime data captured for different US cities, EastCoast NYC, WestCoast SF
 
 if(isIdCurrent(conn))
 {
-     all_citycrimedata <-  dbGetQuery(conn,"select crimedata.citycode, offenseid, offense, offenselocaldate, offenselocaltime, dayofweek, offensehour, offensemonth, offensearea from crimedata, city where city.citycode = crimedata.citycode")
+     allcitycrimedata <-  dbGetQuery(conn,"select crimedata.citycode, offenseid, offense, offenselocaldate, offenselocaltime, dayofweek, offensehour, offensemonth, offensearea from crimedata, city where city.citycode = crimedata.citycode")
     
      
-     data <- fetch(allcitycrimedata, n=10) 
+     View(allcitycrimedata)
     
-}
+     
+     action <- dbGetQuery(conn,"select distinct offense from crimedata where citycode='NYC'")
+
+        
+     
+ for (i in seq(1,nrow(allcitycrimedata),1)) 
+{    
+
+      if(grepl('LARCENY|ROBBERY|THEFT|STOLEN|EMBEZZLEMENT', allcitycrimedata$offense[i], ignore.case=TRUE ))
+     {
+           allcitycrimedata$category[i] <- 'LARCENY'
+     }
+      else if(grepl('RAPE|SEX OFFENSE|SEXUAL|BATTERY|PROSTITUTION', allcitycrimedata$offense[i], ignore.case=TRUE ))
+     {
+         allcitycrimedata$category[i] <- 'SEX OFFENSE'
+     }
+      
+      else if(grepl('BURGLARY', allcitycrimedata$offense[i], ignore.case=TRUE ))
+     {
+           allcitycrimedata$category[i] <- 'BURGLARY'
+      }
+       else if(grepl('MURDER|HOMICIDE', allcitycrimedata$offense[i], ignore.case=TRUE ))
+     {
+          allcitycrimedata$category[i] <- 'MURDER'
+      }
+      else if(grepl('NARCOTIC|LIQUOR', allcitycrimedata$offense[i], ignore.case=TRUE ))
+     {
+          allcitycrimedata$category[i] <- 'NARCOTIC'
+      }
+      else if(grepl('OTHER|SUICIDE|NON CRIMINAL|NON-CRIMINAL|NON - CRIMINAL|SUSPICIOUS|DECEPTIVE|INTERFERENCE|INTIMIDATION|STALKING|TRESSPASS|SECONDARY|RUNAWAY|MISSING|TRESPASS', allcitycrimedata$offense[i], ignore.case=TRUE ))
+     {
+       allcitycrimedata$category[i] <- 'OTHER'
+     }
+     else if( grepl('FORGERY|FRAUD|BAD CHECKS|EXTORTION', allcitycrimedata$offense[i], ignore.case=TRUE ))
+      {
+           allcitycrimedata$category[i] <- 'FRAUD'
+      }
+     else if( grepl('PUBLIC INDECENCY|OBSCENITY|DRUNKENNESS|CONDUCT|PUBLIC PEACE|WARRANTS|WEAPON|VEHICLE|LICENSE|DRIVING|BRIBERY|GAMBLING', allcitycrimedata$offense[i], ignore.case=TRUE ))
+      {
+          allcitycrimedata$category[i] <- 'MISCONDUCT'
+      }
+       else if( grepl('FAMILY|KIDNAPPING', allcitycrimedata$offense[i], ignore.case=TRUE ))
+      {
+         allcitycrimedata$category[i] <- 'FAMILY'
+      } 
+      else if( grepl('CHILDREN', allcitycrimedata$offense[i], ignore.case=TRUE ))
+      {
+          allcitycrimedata$category[i] <- 'CHILD ABUSE'
+       }
+       else if( grepl('VANDALISM|DAMAGE|ARSON', allcitycrimedata$offense[i], ignore.case=TRUE ))
+      {
+          allcitycrimedata$category[i] <- 'VANDALISM'
+      }
+      else if( grepl('ASSAULT', allcitycrimedata$offense[i], ignore.case=TRUE ))
+      {
+          allcitycrimedata$category[i] <- 'ASSAULT'
+      }
+     
+ }      # end of for loop
+      
+      
+#   ifany <- any(is.na(allcitycrimedata$category   ))
+      
+     
+      #filter(mtcars, !grepl('Toyota|Mazda', type))
+ }
+     
+     head(allcitycrimedata)
+     
+
 ```
 
+
+
 ********
+
+
+#### new df <- group by city and offense
+group by borough andwithin borough, group by offense
+
+ 
+```{r  tidy=TRUE, tidy.opts=list(width.cutoff=80),echo=TRUE}
+
+     crimedata_cityDF <- allcitycrimedata %>% select( citycode, category) %>% group_by(citycode, category) %>%  dplyr::summarise(total =n())
+
+datatable(crimedata_cityDF)
+```
+
+
+# offense vs city
+
+```{r warning=FALSE, comment=FALSE, message=FALSE, tidy=TRUE, tidy.opts=list(width.cutoff=120), fig.width=10,fig.height=10}
+
+
+ggplot(crimedata_cityDF, aes(x=crimedata_cityDF$citycode, y= crimedata_cityDF$total, fill= crimedata_cityDF$category)) + ggtitle("Offense In US Cities(East Coast, MidWest, WestCoast") + geom_bar(colour="black",stat='identity') + coord_flip() + xlab("Cities") +  ylab("Offense Category") + scale_fill_brewer(palette="Paired")
+
+```
+
 
 
 ********
