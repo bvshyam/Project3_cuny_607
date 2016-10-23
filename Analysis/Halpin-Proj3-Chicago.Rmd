@@ -47,34 +47,20 @@ crimeSec <- second(crimeTimeStamp)
 
 
 cleanedData <- data.frame(
-chicago$Primary.Type,
-chicago$Arrest,
-chicago$District,
-chicago$Location.Description,
+crimeType = chicago$Primary.Type,
+wasArrestMade = chicago$Arrest,
+district = chicago$District,
+location = chicago$Location.Description,
 crimeDates,
 dayOfWeek,
 crimeMonth,
 crimeHr,
 crimeMin,
 crimeSec,
-chicago$Latitude,
-chicago$Longitude
+latitude = chicago$Latitude,
+longitude =chicago$Longitude
 )
 
-cleanedData <- rename(cleanedData, c(
-  "chicago.Primary.Type" = "offense", 
-  "chicago.Arrest" = "wasArrestMade", 
-  "chicago.District" = "district", 
-  "chicago.Location.Description"="offensearea", 
-  "crimeDates" = "offenselocaldate", 
-  "dayOfWeek" = "dayofweek",
-  "crimeMonth" = "offensemonth",
-  "crimeHr" =  "offensehour",
-  "crimeMin" = "minute",
-  "crimeSec" = "seconds",
-  "chicago.Latitude" = "latitude",
-  "chicago.Longitude" = "longitude"
-))
 
 cleanedData$offenseid <- chicago$ID
 cleanedData$offenselocaltime <- chicagoTimes
@@ -83,12 +69,12 @@ cleanedData$offenselocaltime <- chicagoTimes
 dataForDB <- data.frame (
 cityCode = "CHI",
 offenseid = cleanedData$offenseid,
-offense = cleanedData$offense,
-offenselocaldate =cleanedData$offenselocaldate,
+offense = cleanedData$crimeType,
+offenselocaldate =cleanedData$crimeDates,
 offenselocaltime = cleanedData$offenselocaltime,
-offensehour= cleanedData$offensehour,
-offensemonth= cleanedData$offensemonth,
-offensearea = cleanedData$offensearea
+offensehour= cleanedData$crimeHr,
+offensemonth= cleanedData$crimeMonth,
+offensearea = cleanedData$location
 )
 
 dataForDB$dayofweek <- weekdays(as.Date(crimeDates))
@@ -101,4 +87,4 @@ conn <- dbConnect(MySQL(),
                  host = 'mygroup.c5rotlbjbl71.us-east-1.rds.amazonaws.com',
                  dbname = 'crimedb')
 
-#dbWriteTable(conn, value = dataForDB, name = "crimedata", row.names=F, append = TRUE ) 
+dbWriteTable(conn, value = dataForDB, name = "crimedata", row.names=F, append = TRUE ) 
