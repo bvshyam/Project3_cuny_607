@@ -1,6 +1,6 @@
 ---
 title: "607 Project 3 : Crime Compare"
-author: "Kumudini Bhave, Shyam BV, Mark Halpin"
+author: "Kumudini Bhave, Shyam BV, Mark Halpin, Upal Chowdhury"
 date: "October 18, 2016"
 output:
   html_document:
@@ -10,13 +10,13 @@ output:
 
 ********
 
-# **Crime DataSet Study : Crime Data Study , a comparison between East Coast city , New York City (NYC) and West Coast city San Francisco (SFO)**
+# **Crime DataSet Study : Crime Data Study , a comparison between East Coast city , New York City (NYC) and West Coast city San Francisco (SFO) and MidWest city Chicago (CHI)**
 
 ********
 
 ## Summary
 
-This is an R Markdown document for providing documentation for performing **Data Exploration And Analysis Of the Crime  DataSet of publicly available crime data for New York City and San Francisco**
+This is an R Markdown document for providing documentation for performing **Data Exploration And Analysis Of the Crime  DataSet of publicly available crime data for New York City and San Francisco and Chicago**
 
 ********
 
@@ -42,6 +42,11 @@ library(dplyr)
 library(ggplot2)
 library(knitr)
 
+
+# Library for db operations
+library(RMySQL)
+
+
 # Library for loading data
 library(jsonlite)
 library(XML)
@@ -51,9 +56,64 @@ library(xml2)
 
 ********
 
-### Loading DataSet
+### Function to get database connection 
 
-Loading the flight status data, Reading text file from the GitHub location with Header as True
+```{r  tidy=TRUE, tidy.opts=list(width.cutoff=80),echo=TRUE}
+
+
+mysql_dbconn <- function(schema, uid, hostname, pwd){
+  
+     rmysql.settingsfile<-"C:/ProgramData/MySQL/MySQL Server 5.6/my.ini"
+     conn <- dbConnect(RMySQL::MySQL(), dbname = schema, username=uid , host = hostname, password = pwd)
+     return(conn)          
+}
+
+
+
+```
+
+
+********
+
+### Forming MYSQL DB Connection to Crime Schema
+
+```{r  tidy=TRUE, tidy.opts=list(width.cutoff=80),echo=TRUE}
+
+
+#conn <- mysql_dbconn("crime","root","WhiteLotus21")
+#conn <- mysql_dbconn('mygroup','mygroup#01','mygroup.c5rotlbjbl71.us-east-1.rds.amazonaws.com','crimedb')
+
+
+
+conn <- dbConnect(MySQL(),
+                 user = 'mygroup',
+                 password = 'mygroup#01',
+                 host = 'mygroup.c5rotlbjbl71.us-east-1.rds.amazonaws.com',
+                 dbname = 'crimedb')
+
+
+# List the database tables in crime schema
+entdbtables <- dbListTables(conn)
+
+```
+
+
+********
+
+
+
+
+********
+
+
+
+
+###  New York City (NYC) DataSet Study
+
+
+#### Loading New York City (NYC) DataSet
+
+Loading the crime data. Reading data file , XML format, from the GitHub location with Header as True
 
 https://raw.githubusercontent.com/bvshyam/Project3_cuny_607/master/Data/NYC_15.csv
 
@@ -84,7 +144,9 @@ nyc_crimedataDF <- nycdataxmlDFchk %>% select(objectid, occurrence_date,day_of_w
 # mutate to strip time
 
 nyc_crimedataDF <- nyc_crimedataDF %>% 
-     mutate(occurrence_time = str_extract(occurrence_date,"[[:digit:]]{2}:[[:digit:]]{2}:[[:digit:]]{2}")) %>% mutate(occurrence_date = str_extract(occurrence_date, "[[:digit:]]{4}-[[:digit:]]{2}-[[:digit:]]{2}"))
+     mutate(occurrence_time = str_extract(occurrence_date,"[[:digit:]]{2}:[[:digit:]]{2}:[[:digit:]]{2}")) %>% mutate(occurrence_date = str_extract(occurrence_date, "[[:digit:]]{4}-[[:digit:]]{2}-[[:digit:]]{2}")) %>% 
+     mutate(occurrence_hour = as.numeric(occurrence_hour))
+
      
 
 # mutate to add Week# from (0 - 52)
@@ -104,9 +166,51 @@ datatable(nyc_crimedataDF)
 
 ********
 
+#### Populating CimeData database table with New York City (NYC) Crime Data
 
 
-# new df <- group by bourough and offense
+
+ 
+```{r  tidy=TRUE, tidy.opts=list(width.cutoff=80),echo=TRUE}
+
+# Prepare dataframe for database insert
+
+nycdbinsert <- subset(nyc_crimedataDF, select = c(objectid, offense, occurrence_date, occurrence_time ,day_of_week,occurrence_hour, occurrence_month, borough))
+
+
+     
+# Adding citycode column at start of dataframe
+nycdbinsert <- cbind(citycode = "NYC", nycdbinsert)
+
+
+# matching column names to database table column names
+
+colnames(nycdbinsert) <- c( "citycode", "offenseid", "offense", "offenselocaldate", "offenselocaltime", "dayofweek", "offensehour", "offensemonth", "offensearea" )
+     
+# Bulk insert from dataframe to MYSQL table
+
+dbWriteTable(conn, value = nycdbinsert, name = "crimedata", row.names=F, append = TRUE ) 
+
+
+#View(nycdbinsert)
+
+  
+
+
+```
+
+*********
+
+
+
+
+
+
+*********
+
+
+
+#### new df <- group by bourough and offense
 group by borough andwithin borough, group by offense
 
  
@@ -118,7 +222,7 @@ datatable(nyc_crimedata_boroughDF)
 ```
 
 ********
-# new df <- group by week# and offense
+#### new df <- group by week# and offense
 
 ```{r  tidy=TRUE, tidy.opts=list(width.cutoff=80),echo=TRUE}
 
@@ -128,7 +232,7 @@ datatable(nyc_crimedata_weekDF)
 
 ```
 
-# new df <- group by hour# and offense
+#### new df <- group by hour# and offense
 
 ```{r  tidy=TRUE, tidy.opts=list(width.cutoff=80),echo=TRUE}
 
@@ -143,17 +247,17 @@ datatable(nyc_crimedata_hourDF)
 
 
 
-# Plots
+### NYC DataSet Plots
 
 Hour vs Offense
 ```{r warning=FALSE, comment=FALSE, message=FALSE, tidy=TRUE, tidy.opts=list(width.cutoff=120), fig.width=10,fig.height=10}
 
-ggplot(nyc_crimedata_hourrateDF, aes(y=nyc_crimedata_hourrateDF$offensecount, x= nyc_crimedata_hourrateDF$occurrence_hour )) + geom_point() + ggtitle("Hypothesis : Offense Vs Hour Of Day") +    scale_y_discrete(name = "Offense") + scale_x_datetime
-
-ggplot(nyc_crimedata_hourDF, aes(y=nyc_crimedata_hourDF$total, x= nyc_crimedata_hourDF$occurrence_hour)) + geom_point(aes(color=offense)) + ggtitle("Hypothesis : Offense Vs Hour Of Day") + facet_grid(~offense) + xlab("Hour Of Day") +  ylab("Offense") #+scale_x_continuous(limits=c(0,24))
 
 
-my$Time <- as.POSIXct(my$Time, format="%H:%M:%S")
+ggplot(nyc_crimedata_hourDF, aes(y=nyc_crimedata_hourDF$total, x= nyc_crimedata_hourDF$occurrence_hour)) + geom_point(aes(color=offense)) + ggtitle("Hypothesis : Offense Vs Hour Of Day") + facet_grid(~offense) + xlab("Hour Of Day") +  ylab("Offense") 
+
+
+
 
 ```
 
@@ -174,7 +278,7 @@ nyc_crimedata_dayDF <- nyc_crimedataDF %>% select( day_of_week, offense) %>% gro
 
 datatable(nyc_crimedata_dayDF)
 
-ggplot(nyc_crimedata_dayDF, aes(y=daywisetotal, x= day_of_week, fill= offense)) + xlab("Day Of Week") + ylab("Offense Count") + ggtitle("Hypothesis : Offense Vs Day Of Week") + geom_bar(stat="identity", position=position_dodge()) + scale_fill_brewer(palette="OrRd")
+ggplot(nyc_crimedata_dayDF, aes(y=daywisetotal, x= day_of_week, fill= offense)) + xlab("Day Of Week") + ylab("Offense Count") + ggtitle("Hypothesis : Offense Vs Day Of Week") + geom_bar(stat="identity", position=position_dodge()) + scale_fill_brewer(palette="OrRd") + scale_x_discrete(limits=c("Sunday","Monday","Tuesday","Wednesday","Thursday","Friday", "Saturday"))
 
 
 
@@ -194,12 +298,82 @@ ggplot(nyc_crimedata_dayDF, aes(y=daywisetotal, x= day_of_week, fill= offense)) 
 
 ggplot(nyc_crimedata_boroughDF, aes(x=nyc_crimedata_boroughDF$borough, y= nyc_crimedata_boroughDF$total, fill= nyc_crimedata_boroughDF$offense)) + ggtitle("Offense In NYC Boroughs") + geom_bar(colour="black",stat='identity') + coord_flip() + xlab("Boroughs") +  ylab("Offense") + scale_fill_brewer(palette="RdPu")
 
+########################################
+# Trying map
 
 library(ggmap)
 mymap <- get_map(location = "New York", maptype = "roadmap")
 ggmap(mymap)
 
-
+########################################
 
 ```
 
+*********
+###   San Francisco (SFO) DataSet Study
+
+
+#### Loading San Francisco (SFO) DataSet
+
+*********
+
+
+
+
+
+
+
+*********
+
+### Chicago (CHI) DataSet Study
+
+
+*********
+
+#### Loading Chicago (CHI) DataSet
+
+
+*********
+
+
+********
+
+### Comparing Crime Across USA Prime Cities
+
+********
+
+
+
+********
+
+### Loading Captured Crime Data From All Cities 
+
+Loading crime data captured for different US cities, EastCoast NYC, WestCoast SFO and MidWest Chicago.
+
+```{r tidy=TRUE, tidy.opts=list(width.cutoff=80), echo=TRUE}
+#DATE_FORMAT(offenselocaltime,'%H:%i:%s')
+
+if(isIdCurrent(conn))
+{
+     all_citycrimedata <-  dbGetQuery(conn,"select crimedata.citycode, offenseid, offense, offenselocaldate, offenselocaltime, dayofweek, offensehour, offensemonth, offensearea from crimedata, city where city.citycode = crimedata.citycode")
+    
+     
+     data <- fetch(allcitycrimedata, n=10) 
+    
+}
+```
+
+********
+
+
+********
+
+
+### Close database connection     
+
+```{r tidy=TRUE, tidy.opts=list(width.cutoff=80), echo=TRUE}
+       
+dbDisconnect(conn)
+
+#####################################################################
+```
