@@ -7,6 +7,8 @@ output: html_document
 
 ```{r library, eval=TRUE}
 #install.packages("data.tree")
+#install.packages("RMySQL")
+
 library(RCurl)
 library(dplyr)
 library(utils)
@@ -17,7 +19,21 @@ library(ggplot2)
 library(plotly)
 library(stringr)
 library(tidyr)
+library(RMySQL)
 ```
+
+```{r library, eval=TRUE}
+
+conn <- dbConnect(MySQL(),
+                 user = 'mygroup',
+                 password = 'mygroup#01',
+                 host = 'mygroup.c5rotlbjbl71.us-east-1.rds.amazonaws.com',
+                 dbname = 'crimedb')
+#running sql
+enddbtables <- dbListTables(conn)
+```
+
+
 
 
 
@@ -28,23 +44,53 @@ sf_crim.json <- fromJSON("Data/sfo_dec2015.json")
 
 sf_crimedata <-sf_crim.json[['data']]
 
-sf_crime.df <- data.frame(Category = sapply(sf_crimedata,function(x) x[[10]]), DayOfWeek = sapply(sf_crimedata,function(x) x[[12]]), Date = sapply(sf_crimedata,function(x) x[[13]]), Time =  sapply(sf_crimedata,function(x) x[[14]]),PdDistrict = sapply(sf_crimedata,function(x) x[[15]]),Location1= sapply(sf_crimedata,function(x) x[[18]]),Location2= sapply(sf_crimedata,function(x) x[[19]]))
-
-# , month=months(as.Date(sapply(sf_crimedata,function(x) x[[13]]),"%Y%m/%d/%Y"))
+sf_crime.df <- data.frame(offenseid = sapply(sf_crimedata,function(x) x[[1]]), Category = sapply(sf_crimedata,function(x) x[[10]]), DayOfWeek = sapply(sf_crimedata,function(x) x[[12]]), Date = as.Date(substr(sapply(sf_crimedata,function(x) x[[13]]),1,10),"%Y-%m-%d"),Time =  sapply(sf_crimedata,function(x) x[[14]]),PdDistrict = sapply(sf_crimedata,function(x) x[[15]]),Location= paste(sapply(sf_crimedata,function(x) x[[19]]),",", sapply(sf_crimedata,function(x) x[[18]])), month = month.abb[month(as.Date(substr(sapply(sf_crimedata,function(x) x[[13]]),1,10),"%Y-%m-%d"))], offensearea = sapply(sf_crimedata,function(x) x[[15]]) )
 
 
-
-#CSV Load
-
-sf_crime <- read.csv("Data/sfo_dec2015.csv", header = TRUE, sep="," , stringsAsFactors = FALSE,na.strings = c("",NA,"n/a","N/A","NA")) %>% select(Category,DayOfWeek,Date,Time,PdDistrict,Resolution,Location) %>% mutate(month = months(as.Date(Date,"%m/%d/%Y")))
+sf_crime_changes<- sf_crime.df 
 
 
-sf_crime_changes<- sf_crime 
+sf_crime_changes <- mutate(sf_crime_changes,Hour= round(as.numeric(str_replace_all(sf_crime_changes$Time,":",".")))) %>%  
+  mutate(Date= as.Date(sf_crime_changes$Date,"%m/%d/%Y")) 
+
+sf_crime_changes <- sf_crime_changes %>% mutate(timeframe= sapply(sf_crime_changes$Hour, function(x) { if(x >6 & x <= 11) {"Morning"} else if(x >11 & x <= 16) {"Noon"} else if(x >16 & x <= 20) {"Evening"}  else if(x <=6 | x>20) {"Night" }}))
 
 
-sf_crime_changes <- mutate(sf_crime_changes,Time= as.numeric(str_replace_all(sf_crime_changes$Time,":","."))) %>%  
-  mutate(Date= as.Date(sf_crime_changes$Date,"%m/%d/%Y")) %>% 
-mutate(timeframe= sapply(sf_crime_changes$Time, function(x) { if(x >6 & x <= 11) {"Morning"} else if(x >11 & x <= 16) {"Noon"} else if(x >16 & x <= 20) {"Evening"}  else if(x <=6 | x>20) {"Night" }}))
+sf_crime_db <- select(sf_crime_changes,offenseid=offenseid,offense=Category,offensedate=Date,offensetime=Time,dayofweek=DayOfWeek,offensehour=Hour,offensemonth=month,offensearea=offensearea) %>% mutate(citycode="SFO")
+
+```
+
+
+
+```{r  tidy=TRUE, tidy.opts=list(width.cutoff=80),echo=TRUE}
+
+# Arrange the columns for database insert
+
+sf_crime_db_1 <- select(sf_crime_db,citycode, offenseid, offense, offenselocaldate = offensedate, offenselocaltime = offensetime, dayofweek, offensehour, offensemonth, offensearea)
+
+
+# Bulk insert from dataframe to MYSQL table
+
+dbWriteTable(conn, value = sf_crime_db_1, name = "crimedata", row.names=F, append = TRUE ) 
+
+
+```
+
+
+
+
+
+
+```{r analysiss,eval=TRUE}
+sfo_crime_hour <- sf_crime_db %>% select( offensehour, offense) %>% group_by(offensehour, offense) %>%  summarise(total =n()) 
+
+
+ggplot(sfo_crimedata_hourDF, aes(y=sfo_crimedata_hourDF$total, x= sfo_crimedata_hourDF$offensehour)) + geom_point(aes(color=offense)) + ggtitle("Hour vs Offense")  + xlab("Hour") +  ylab("Offense")
+
+
+p <- ggplot(sfo_crimedata_hourDF, aes(y=sfo_crime_hour$total, x= sfo_crime_hour$offensehour)) + geom_line(aes(color=offense)) + ggtitle("Hour vs Offense")  + xlab("Hour") +  ylab("Offense")
+ggplotly(p)
+
 
 
 # Analyze Crime by frequency
@@ -76,11 +122,61 @@ crimesbyday <- table(sf_crime_changes$DayOfWeek,sf_crime_changes$timeframe)
 
 mostcrimes <- table(sf_crime_changes$DayOfWeek,sf_crime_changes$Category) %>% data.frame() %>% spread(Var1,Freq) %>% mutate(summary=rowSums(.[,2:8],1))
 
-topcrimes <- mostcrimes[(mostcrimes$summary/sum(mostcrimes$summary))> .05,]
+topcrimes <- mostcrimes[(mostcrimes$summary/sum(mostcrimes$summary))> .05,] %>% data.frame()
+
 
 
 #Webscrapping 
 
+
+df <- read.csv('https://raw.githubusercontent.com/plotly/datasets/master/2011_february_us_airport_traffic.csv')
+
+
+
+
+sf_crime.map <- data.frame(offenseid = sapply(sf_crimedata,function(x) x[[1]]), Category = sapply(sf_crimedata,function(x) x[[10]]), DayOfWeek = sapply(sf_crimedata,function(x) x[[12]]), Date = as.Date(substr(sapply(sf_crimedata,function(x) x[[13]]),1,10),"%Y-%m-%d"),Time =  sapply(sf_crimedata,function(x) x[[14]]),PdDistrict = sapply(sf_crimedata,function(x) x[[15]]),Location1= sapply(sf_crimedata,function(x) x[[19]]), Location2= sapply(sf_crimedata,function(x) x[[18]]), month = month.abb[month(as.Date(substr(sapply(sf_crimedata,function(x) x[[13]]),1,10),"%Y-%m-%d"))]   )
+
+
+
+
+# geo styling
+g <- list(
+  scope = 'usa',
+  projection = list(type = 'albers usa'),
+  showland = TRUE,
+  landcolor = toRGB("gray95"),
+  subunitcolor = toRGB("gray85"),
+  countycolor = toRGB("gray85"),
+  countycolor = 0.5,
+  subunitwidth = 0.5
+)
+
+
+
+plot_geo(sf_crime.map, lat = ~Location1, lon = ~Location2) %>%
+  add_markers(
+  text = ~paste(Category, paste("Offenders:", Category), sep = "<br />"),
+    color = ~Category, symbol = I("square"), size = I(12), hoverinfo = "text"
+  ) %>%
+ # colorbar(title = "Incoming flights<br />February 2011") %>%
+  layout(
+    title = 'Most trafficked US airports<br />(Hover for airport)', geo = g
+  )
+
+
+plot_ly(type="choropleth",locations=c('CA'),locationmode='USA-States',colorscale='Viridis',z=c(10,20,40)) %>% layout(geo=list(scope='usa')) 
+
+
+
+plot_geo(df, lat = ~lat, lon = ~long) %>%
+  add_markers(
+    text = ~paste(airport, city, state, paste("Arrivals:", cnt), sep = "<br />"),
+    color = ~cnt, symbol = I("square"), size = I(8), hoverinfo = "text"
+  ) %>%
+  colorbar(title = "Incoming flights<br />February 2011") %>%
+  layout(
+    title = 'Most trafficked US airports<br />(Hover for airport)', geo = g
+  )
 
 
 ```
