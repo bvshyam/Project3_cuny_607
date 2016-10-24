@@ -15,10 +15,12 @@ chicago <- read.csv("https://raw.githubusercontent.com/bvshyam/Project3_cuny_607
 
 Clean the data! As the data is in a format of "M/D/Y H:M:S", we need to break that down and separate the data so we can get more fine grained analysis with it. To do so, we use
 the lubridate and stringr library. String allows us to use regular expressions to filter data, and lubridate provides easy to use, nicely abstracted functions to transform the data
-into time formats.
+into time formats. As the timestamp is in the AM/PM format, we have to convert everything to twenty four hour time so that you as the analyst can tell the difference. Otherwise, the data will
+just all show a 12 hr format with no distinction. Once this occurs, we can perform calculations on the data. We are also going to extract out the hours, minutes, and seconds of the crime.
 ```{r}
 crimeDates <- as.Date(chicago$Date, "%m/%d/%Y")
-chicagoTimes <- unlist(str_extract_all(chicago$Date, pattern="\\d{1,2}\\:\\d{1,2}\\:\\d{1,2}"))
+twentyFourHourTime <- as.POSIXct(chicago$Date, format = "%m/%d/%Y %I:%M:%S %p")
+chicagoTimes <- unlist(str_extract_all(twentyFourHourTime, pattern="\\d{1,2}\\:\\d{1,2}\\:\\d{1,2}"))
 partOfDay <- unlist(str_extract_all(chicago$Date, pattern="[[:alpha:]]{2}"))
 dayOfWeek <- wday(crimeDates, label = TRUE)
 crimeMonth <- month(crimeDates, label = TRUE)
@@ -121,14 +123,9 @@ table(cleanedData$wasArrestMade, cleanedData$dayOfWeek )
 ```
 Based on this information, Tuesday is the day when most people are arrested for the sample.
 
-Now, how do we find the average time someone is arrested? Well, we need to convert the date and time to accurately find this information. As the timestamp is
-in the AM/PM format, we have to convert everything to twenty four hour time so that you as the analyst can tell the difference. Otherwise, the data will
-just all show a 12 hr format with no distinction. Once this occurs, we can perform calculations on the data.
+Now, how do we find the average time someone is arrested? Well, we need to find the mean of the timestamp from the Chicago data. Since we did the conversion  of 12 hr time to 24 hr,
+we can perform a "mean" calculation against the variable to find the time. 
 ```{r}
-twentyFourHourTime <- as.POSIXct(chicago$Date, format = "%m/%d/%Y %I:%M:%S %p")
-
 mean(twentyFourHourTime)
 ```
-The average time that smeone would be arrested in this sample is on 12/15/15 at 1:59AM.
-
-
+The average time that someone  would be arrested in this sample is on 12/15/15 at 1:59AM.
