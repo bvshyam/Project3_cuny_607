@@ -1,9 +1,12 @@
 ---
-title: "607 Project 3 : Crime Compare"
+title: "607 Project 3 : East West Crime Compare"
 author: "Kumudini Bhave, Shyam BV, Mark Halpin, Upal Chowdhury"
 date: "October 18, 2016"
 output:
   html_document:
+    fontsize: 17pt
+    highlight: pygments
+    theme: cerulean
     toc: yes
 ---
 
@@ -18,9 +21,15 @@ output:
 
 This is an R Markdown document for providing documentation for performing **Data Exploration And Analysis Of the Crime  DataSet of publicly available crime data for New York City and San Francisco and Chicago**
 
+
 ********
 
+
+
+
 ## R Code :
+
+
 
 ### Loading Packages Used
 
@@ -52,37 +61,38 @@ library(jsonlite)
 library(XML)
 library(xml2)
 
-```
 
-********
-
-### Function to get database connection 
-
-```{r  tidy=TRUE, tidy.opts=list(width.cutoff=80),echo=TRUE}
+library(lubridate)
+library(plotly)
 
 
-mysql_dbconn <- function(schema, uid, hostname, pwd){
-  
-     rmysql.settingsfile<-"C:/ProgramData/MySQL/MySQL Server 5.6/my.ini"
-     conn <- dbConnect(RMySQL::MySQL(), dbname = schema, username=uid , host = hostname, password = pwd)
-     return(conn)          
-}
 
+library(bitops)
+
+library(stringi)
+
+library(ggmap)
+
+library(grid)
 
 
 ```
 
 
+
 ********
+
 
 ### Forming MYSQL DB Connection to Crime Schema
 
+Database MYSQL set up in cloud.
+Connection and access to database can be obtained as follows through amazon web services.
+@schema crimedb
+
+The connection object 'conn' will further be used for querying and manipulating database tables.
+
+
 ```{r  tidy=TRUE, tidy.opts=list(width.cutoff=80),echo=TRUE}
-
-
-#conn <- mysql_dbconn("crime","root","WhiteLotus21")
-#conn <- mysql_dbconn('mygroup','mygroup#01','mygroup.c5rotlbjbl71.us-east-1.rds.amazonaws.com','crimedb')
-
 
 
 conn <- dbConnect(MySQL(),
@@ -95,6 +105,14 @@ conn <- dbConnect(MySQL(),
 # List the database tables in crime schema
 entdbtables <- dbListTables(conn)
 
+
+############################################################################# 
+# FOR TEST PURPOSE OF RMD, NEED TO DELETE EXISTING DATA TO AVOID INTEGRITY CONSTRAINT ERRORS
+
+ #delnycdata <- dbGetQuery(conn,"DELETE FROM crimedata WHERE citycode = 'NYC'")
+
+##################################################################################
+ 
 ```
 
 
@@ -102,49 +120,59 @@ entdbtables <- dbListTables(conn)
 
 
 
-
-********
-
+##  New York City (NYC) DataSet Study
 
 
+### Loading New York City (NYC) DataSet
 
-###  New York City (NYC) DataSet Study
+Loading the crime data. Reading data file in XML format, from the GitHub location with Header as True
 
 
-#### Loading New York City (NYC) DataSet
-
-Loading the crime data. Reading data file , XML format, from the GitHub location with Header as True
-
-https://raw.githubusercontent.com/bvshyam/Project3_cuny_607/master/Data/NYC_15.csv
-
- 
-```{r  tidy=TRUE, tidy.opts=list(width.cutoff=80),echo=TRUE}
+```{r warning=FALSE, comment=FALSE, message=FALSE, tidy=TRUE, tidy.opts=list(width.cutoff=150)}
+knitr::opts_chunk$set(message = FALSE, echo=TRUE)
 
 
 ################################ XML #######################################
 
 nycxml.giturl <- "https://raw.githubusercontent.com/bvshyam/Project3_cuny_607/master/Data/nyc_dec2015.xml"
 nycdataxml <- xmlRoot(xmlParse(getURL(nycxml.giturl))) # get XML file contents
+
 class(nycdataxml)
 xmlName(nycdataxml)
 xmlSize(nycdataxml)
-nycdataxml[1]
+
 xmlSize(nycdataxml[1])
 xmlSize(nycdataxml[[1]])
 
 nycdataxmlDFchk <- xmlToDataFrame(nycdataxml[[1]])
+
+# The number of rows available in datasw
 nrow(nycdataxmlDFchk)
 head(nycdataxmlDFchk)
 
-# select columns from the dataset for study
+
+```
+
+
+*********
+
+
+
+### Data Manipulation  New York City (NYC) DataSet
+
+Selecting columns from the NYC dataset for study
+
+
+```{r  tidy=TRUE, tidy.opts=list(width.cutoff=80),echo=TRUE}
 
 nyc_crimedataDF <- nycdataxmlDFchk %>% select(objectid, occurrence_date,day_of_week,occurrence_month,occurrence_hour,offense, borough)
 
 
-# mutate to strip time
+# mutate to strip time as separate attribute from date.
 
 nyc_crimedataDF <- nyc_crimedataDF %>% 
-     mutate(occurrence_time = str_extract(occurrence_date,"[[:digit:]]{2}:[[:digit:]]{2}:[[:digit:]]{2}")) %>% mutate(occurrence_date = str_extract(occurrence_date, "[[:digit:]]{4}-[[:digit:]]{2}-[[:digit:]]{2}")) %>% 
+     mutate(occurrence_time = str_extract(occurrence_date,"[[:digit:]]{2}:[[:digit:]]{2}:[[:digit:]]{2}")) %>% 
+    mutate(occurrence_date = str_extract(occurrence_date, "[[:digit:]]{4}-[[:digit:]]{2}-[[:digit:]]{2}")) %>% 
      mutate(occurrence_hour = as.numeric(occurrence_hour))
 
      
@@ -153,12 +181,13 @@ nyc_crimedataDF <- nyc_crimedataDF %>%
 
 nyc_crimedataDF <- nyc_crimedataDF %>% mutate(week = strftime(as.POSIXlt(occurrence_date),format="%W"))
 
+
+
+#  View of NYC crime data
+#View(nyc_crimedataDF)
 datatable(nyc_crimedataDF)
 
 
-#x<-head(nyc_crimedataDF)
-
-#xm <- x %>% mutate(occurrence_time = str_extract(occurrence_date,"[[:digit:]]{2}:[[:digit:]]{2}:[[:digit:]]{2}")) %>% #mutate(occurrence_date = str_extract(occurrence_date, "[[:digit:]]{4}-[[:digit:]]{2}-[[:digit:]]{2}"))
      
 
 ```
@@ -166,9 +195,11 @@ datatable(nyc_crimedataDF)
 
 ********
 
-#### Populating CimeData database table with New York City (NYC) Crime Data
 
 
+### Populating Crimedb database CrimeData table with New York City (NYC) Crime Data
+
+The data loaded in to data frame which is manipulated is now selected for database posting into **crimedata** table
 
  
 ```{r  tidy=TRUE, tidy.opts=list(width.cutoff=80),echo=TRUE}
@@ -187,10 +218,10 @@ nycdbinsert <- cbind(citycode = "NYC", nycdbinsert)
 
 colnames(nycdbinsert) <- c( "citycode", "offenseid", "offense", "offenselocaldate", "offenselocaltime", "dayofweek", "offensehour", "offensemonth", "offensearea" )
      
+
 # Bulk insert from dataframe to MYSQL table
 
 dbWriteTable(conn, value = nycdbinsert, name = "crimedata", row.names=F, append = TRUE ) 
-
 
 #View(nycdbinsert)
 
@@ -199,19 +230,18 @@ dbWriteTable(conn, value = nycdbinsert, name = "crimedata", row.names=F, append 
 
 ```
 
-*********
-
-
-
-
 
 
 *********
 
 
 
-#### new df <- group by bourough and offense
-group by borough andwithin borough, group by offense
+### Tidying NYC Crime data to make it plot ready
+
+
+#### Group by **Bourough** and **Offense**
+
+Performing group by operations on the dataset to grou by borough and within borough, group by offense.
 
  
 ```{r  tidy=TRUE, tidy.opts=list(width.cutoff=80),echo=TRUE}
@@ -219,10 +249,19 @@ group by borough andwithin borough, group by offense
      nyc_crimedata_boroughDF <- nyc_crimedataDF %>% select( borough, offense) %>% group_by(borough, offense) %>%  dplyr::summarise(total =n())
 
 datatable(nyc_crimedata_boroughDF)
+
+
 ```
 
+
+
 ********
-#### new df <- group by week# and offense
+
+
+#### Group by **Week#** and **Offense**
+
+Performing group by operations on the dataset to grou by Week# and within Week#, group by Offense.
+
 
 ```{r  tidy=TRUE, tidy.opts=list(width.cutoff=80),echo=TRUE}
 
@@ -230,9 +269,16 @@ nyc_crimedata_weekDF <- nyc_crimedataDF %>% select( week, offense) %>% group_by(
 
 datatable(nyc_crimedata_weekDF)
 
+
 ```
 
-#### new df <- group by hour# and offense
+*********
+
+
+#### Group by **Hour#** and **Offense**
+
+Performing group by operations on the dataset to grou by Hour# and within Hour#, group by Offense.
+
 
 ```{r  tidy=TRUE, tidy.opts=list(width.cutoff=80),echo=TRUE}
 
@@ -240,16 +286,28 @@ nyc_crimedata_hourDF <- nyc_crimedataDF %>% select( occurrence_hour, offense) %>
 
 nyc_crimedata_hourrateDF <- nyc_crimedata_hourDF %>% select( occurrence_hour, total) %>%  group_by(occurrence_hour)  %>%  dplyr::summarise(offensecount = sum(total))%>% arrange(occurrence_hour)
 
+
 datatable(nyc_crimedata_hourDF)
+
+
 
 ```
 
+
+*********
 
 
 
 ### NYC DataSet Plots
 
-Hour vs Offense
+The New York City Crime Data is studied to find insights that would throw light on crime occurence in the city. The following plots achieve the same.
+
+
+#### Hour vs Offense
+
+Plot of 'Hour' the crime occurred in the city against the type of 'Offense'.
+This details certain patterns for different types of crimes if they occur at certain time of day more than other.
+
 ```{r warning=FALSE, comment=FALSE, message=FALSE, tidy=TRUE, tidy.opts=list(width.cutoff=120), fig.width=10,fig.height=10}
 
 
@@ -261,15 +319,26 @@ ggplot(nyc_crimedata_hourDF, aes(y=nyc_crimedata_hourDF$total, x= nyc_crimedata_
 
 ```
 
+**Findings** :
+
+We observe Burglary happening more between the sleep hours of 12 am to dawn , denoting the crime is more advantageous when it is sleep time or less awareness time.
+
+Assaults also happening during early hours , perhaps denoting early day travelers.
+
+Thefts in general,  any kind of larceny occurs more during day time.
+similarly robbery is being observed to be happening in NYC area prmarily in late evenings.
+
+Heinous crimes of Murder /Sexual assualts are being seen occurrirng in day time however it can be a risk anytime of day.
 
 
+*********
 
 
-# Day vs hour 
+#### Day vs Offense
 
+Plot of 'Day' (i.e. the day of the week) the crime occurred in the city against the type of 'Offense'.
+This throws light on facts and figures about the crime occurring more on weekdays or weekends , if there is any association between the two factors of the plot.
 
-
-# Day vs Offense
 
 ```{r warning=FALSE, comment=FALSE, message=FALSE, tidy=TRUE, tidy.opts=list(width.cutoff=120), fig.width=10,fig.height=10}
 
@@ -285,52 +354,268 @@ ggplot(nyc_crimedata_dayDF, aes(y=daywisetotal, x= day_of_week, fill= offense)) 
 
 ```
 
-# hour vs borough
+
+**Findings** :
+We find Grand Larceny being high during weekdays and mid week
+Robbery as well is high in mid week.
+Assault is less on weekends comapred to weekday, highlighting that perhaps assaults occur more when people might be usually alone/travelling during weekday rather than weekend when they are more social and acocmpanied with someone.
+
+
+*********
 
 
 
+#### Offense vs Borough
 
+Comaprison of the offenses occuring in NYC boroughs.
+Bronx, Brooklyn, Manhattan, Queens, Staten Island
 
-# offense vs borough
 
 ```{r warning=FALSE, comment=FALSE, message=FALSE, tidy=TRUE, tidy.opts=list(width.cutoff=120), fig.width=10,fig.height=10}
 
 
 ggplot(nyc_crimedata_boroughDF, aes(x=nyc_crimedata_boroughDF$borough, y= nyc_crimedata_boroughDF$total, fill= nyc_crimedata_boroughDF$offense)) + ggtitle("Offense In NYC Boroughs") + geom_bar(colour="black",stat='identity') + coord_flip() + xlab("Boroughs") +  ylab("Offense") + scale_fill_brewer(palette="RdPu")
 
-########################################
-# Trying map
 
-library(ggmap)
-mymap <- get_map(location = "New York", maptype = "roadmap")
-ggmap(mymap)
 
-########################################
+```
+
+
+**Findings** :
+Brooklyn has the highest Offense count followed by Manhattan. 
+Staten Island is the safest NYC borough
+
+Heinous crime of murder / rape are much lesser compared to Grand Larceny which is high in all boroughs in comaprison to other offenses.
+
+Brooklyn has the highest burglary as well as robbery rate among all the boroughs.
+
+
+*********
+
+
+
+
+
+##   San Francisco (SFO) DataSet Study
+
+### Fetching San Francisco (SFO) DataSet from JSON file
+
+
+This JSON has two parts. First section has the meta data and second section will have the actual data
+
+
+
+
+```{r sfo-loaddata,eval=TRUE,warning=FALSE,tidy=TRUE, tidy.opts=list(width.cutoff=80)}
+#JSON Load
+
+sf_crim.json <- fromJSON("https://raw.githubusercontent.com/bvshyam/Project3_cuny_607/master/Data/sfo_dec2015.json")
+
+#Look for data in JSON
+sf_crimedata <-sf_crim.json[['data']]
+
+
+#Select the necessary columns in the JSON
+
+sf_crime.df <- data.frame(offenseid = sapply(sf_crimedata,function(x) x[[1]]), Category = sapply(sf_crimedata,function(x) x[[10]]), DayOfWeek = sapply(sf_crimedata,function(x) x[[12]]), Date = as.Date(substr(sapply(sf_crimedata,function(x) x[[13]]),1,10),"%Y-%m-%d"),Time =  sapply(sf_crimedata,function(x) x[[14]]),PdDistrict = sapply(sf_crimedata,function(x) x[[15]]),Location= paste(sapply(sf_crimedata,function(x) x[[19]]),",", sapply(sf_crimedata,function(x) x[[18]])), month = month.abb[month(as.Date(substr(sapply(sf_crimedata,function(x) x[[13]]),1,10),"%Y-%m-%d"))], offensearea = sapply(sf_crimedata,function(x) x[[15]]) )
+
+
+sf_crime_changes<- sf_crime.df 
+
+# Adding Time period for each day
+
+sf_crime_changes <- mutate(sf_crime_changes,Hour= round(as.numeric(str_replace_all(sf_crime_changes$Time,":",".")))) %>%  
+  mutate(Date= as.Date(sf_crime_changes$Date,"%m/%d/%Y")) 
+
+sf_crime_changes <- sf_crime_changes %>% mutate(timeframe= sapply(sf_crime_changes$Hour, function(x) { if(x >6 & x <= 11) {"Morning"} else if(x >11 & x <= 16) {"Noon"} else if(x >16 & x <= 20) {"Evening"}  else if(x <=6 | x>20) {"Night" }}))
+
+
+# Selecing the columns and calculating the additional columns
+
+sf_crime_db <- select(sf_crime_changes,offenseid=offenseid,offense=Category,offensedate=Date,offensetime=Time,dayofweek=DayOfWeek,offensehour=Hour,offensemonth=month,offensearea=offensearea) %>% mutate(citycode="SFO")
+
+```
+
+
+*********
+
+
+### Database connection and insert
+
+
+
+```{r sfo-datainsert,eval=TRUE,warning=FALSE,tidy=TRUE, tidy.opts=list(width.cutoff=80)}
+
+# Arrange the columns for database insert
+
+sf_crime_db_1 <- select(sf_crime_db,citycode, offenseid, offense, offenselocaldate = offensedate, offenselocaltime = offensetime, dayofweek, offensehour, offensemonth, offensearea)
+
+
+# Bulk insert from dataframe to MYSQL table called crimedata
+
+#dbWriteTable(conn, value = sf_crime_db_1, name = "crimedata", row.names=F, append = TRUE ) 
+
 
 ```
 
 *********
-###   San Francisco (SFO) DataSet Study
+
+### Analysis on SFO data
+
+Now we have the required data. We will make some analysis and plot the graphs.
 
 
-#### Loading San Francisco (SFO) DataSet
+```{r sfo-houroffense,eval=TRUE,warning=FALSE,tidy=TRUE, tidy.opts=list(width.cutoff=80)}
+
+# Select the required columns for comparing hour and offense
+
+sfo_crime_hour <- sf_crime_changes %>% select( Hour, Category) %>% group_by(Hour, Category) %>%  summarise(total =n()) %>% dplyr::arrange(total) 
+
+
+# Hour vs Offense
+    
+    p <- ggplot(sfo_crime_hour, aes( x= sfo_crime_hour$Hour,y=sfo_crime_hour$total)) + geom_line(aes(color=Category)) + ggtitle("Hour vs Offense")  + xlab("Hour") +  ylab("Offense")
+    ggplotly(p)
+
+
+
+    
+# Analyze Crime by offense 
+
+category_count <- table(sf_crime_changes$Category) %>% data.frame() %>% setNames(c("Offense","Frequency"))
+
+datatable(category_count)
+
+
+# Plot a scattered plot by comparing Offense vs Frequency(occurrence)
+
+
+
+a <- list(
+  autotick = TRUE,
+  tick0 = 0,
+  dtick = 1,
+  size=24,
+    showticklabels = FALSE,
+showlegend = FALSE,
+  tickcolor = toRGB("white"),
+zeroline = FALSE,
+  showline = FALSE,
+  showticklabels = FALSE,
+  showgrid = FALSE,
+visible = FALSE,
+title = "Offense"
+)
+
+b <- list(
+title = "Crime count"
+)
+
+plot_ly(x=~category_count$Offense,y=~category_count$Frequency,type="scatter",color = category_count$Offense ) %>% layout(xaxis =a,yaxis=b,title = "Offense vs Frequency")
+
+
+
+
+```
+
+
+*********
+
+### Analyze Crime by Date
+
+```{r sfodatefrequency,eval=TRUE,warning=FALSE,tidy=TRUE, tidy.opts=list(width.cutoff=80)}
+
+#Plot a scattered plot by comparing Offense Date vs Frequency(occurrence)
+
+category_date <- table(sf_crime_changes$Date) %>% data.frame() %>%  setNames(c("Offense_date","Frequency")) 
+
+category_date$Offense_date <- str_replace(category_date$Offense_date,"/2015|2015-","")
+
+datatable(category_date)
+
+#Plot a scattered plot by comparing Offense Date vs Frequency(occurrence)
+
+
+a1 <- list(
+  autotick = TRUE,
+  tick0 = 0,
+  dtick = 1,
+  size=24,
+showlegend = FALSE,
+tickangle =45,
+title=FALSE
+)
+
+b1 <- list(
+title = "Crime count"
+)
+
+plot_ly(x=~category_date$Offense_date,y=~category_date$Frequency,type="area") %>% 
+  layout(xaxis =a1,yaxis=b1,title = "Date vs Frequency")
+
+
+```
+
+
+*********
+
+
+### Analyze by timeframe and top crimes
+
+
+```{r sfo-timefrequency,eval=TRUE,warning=FALSE,tidy=TRUE, tidy.opts=list(width.cutoff=80)}
+
+
+#Crime according to timeframe and Day
+
+crimesbyday <- table(sf_crime_changes$DayOfWeek,sf_crime_changes$timeframe) %>% data.frame() %>% setNames(c("Day","Day_category","Frequency"))
+
+
+datatable(crimesbyday)
+
+
+
+#Top crimes greater than 5%
+
+
+mostcrimes <- table(sf_crime_changes$DayOfWeek,sf_crime_changes$Category) %>% data.frame() %>% spread(Var1,Freq) %>% mutate(summary=rowSums(.[,2:8],1))
+
+
+topcrimes <- mostcrimes[(mostcrimes$summary/sum(mostcrimes$summary))> .05,] %>% data.frame()
+
+
+datatable(topcrimes)
+
+
+```
+
 
 *********
 
 
 
+`````{r }
 
+# #########################################################
+# Please add Marks code for Chicago here on per the index
+# Please follow the heading size protocol as above two datasets
+# Number of hashes make the headings and subheadings.
+# Please keep page breaks after every  section
 
+# And remove this part afer adding code
+#########################################################
+
+```
 
 
 *********
 
-### Chicago (CHI) DataSet Study
+## Chicago (CHI) DataSet Study
 
 
 *********
 
-#### Loading Chicago (CHI) DataSet
+### Loading Chicago (CHI) DataSet
 
 
 *********
@@ -338,13 +623,206 @@ ggmap(mymap)
 
 ********
 
-### Comparing Crime Across USA Prime Cities
+
+## Mapping Crime Data For US Cities
+
+
+### Mapping for East Coast City New York city (NYC)
+
+
+```{r eval = T, message=FALSE}
+
+nyc_data <- getURL('https://raw.githubusercontent.com/bvshyam/Project3_cuny_607/master/Data/nyc_dec2015.csv', ssl.verifyhost=F, ssl.verifypeer=F)
+
+data.nyc <- read.csv(textConnection(nyc_data), header=T)
+data.nyc_f <- data.nyc[complete.cases(data.nyc),]
+
+
+#extracting lat and lon
+dataloc <- data.frame(lat = stri_extract_first(data.nyc_f$Location.1, regex="\\d{1,}.\\d{1,}"),
+           lon = stri_extract_last(data.nyc_f$Location.1, regex = "\\-\\d{1,}.\\d{1,}"))
+head(dataloc)
+
+#subsetting and changing datatype
+data.nyc_f <- data.nyc_f[,c(4,12,20)]
+str(data.nyc_f)
+
+
+data.nyc_f$Offense<- as.character(data.nyc_f$Offense)
+data.nyc_f$Day.of.Week<- as.character(data.nyc_f$Day.of.Week)
+#combining with latitude data
+df2 <- data.frame(cbind(data.nyc_f$Offense,data.nyc_f$Day.of.Week,dataloc[]))
+#changing datatype
+df2$data.nyc_f.Offense <- as.character(df2$data.nyc_f.Offense)
+df2$data.nyc_f.Day.of.Week <- as.character(df2$data.nyc_f.Day.of.Week)
+df2$lat <- as.numeric(as.character(df2$lat))
+df2$lon <- as.numeric(as.character(df2$lon))
+
+
+str(df2)
+#subsetting data based on more violent crime
+dv.nyc <- df2[which(df2$data.nyc_f.Offense == 'ASSAULT' | df2$data.nyc_f.Offense =='ROBBERY'),]
+str(dv.nyc )
+
+#mapping 
+map <- get_map('nyc', zoom = 15, maptype = 'roadmap')
+ggmap(map,extent = "device")+stat_density2d(
+aes(x = dv.nyc$lon, y = dv.nyc$lat, fill = ..level..,
+alpha = ..level..),
+size = 2, bins = 6, data = dv.nyc,
+geom = "polygon")
+
+```
+
+********
+
+### Mapping for MidWest City Chicago
+
+
+```{r eval = T, message=FALSE}
+c_data <- getURL('https://raw.githubusercontent.com/bvshyam/Project3_cuny_607/master/Data/chicago_dec2015.csv', ssl.verifyhost=F, ssl.verifypeer=F)
+
+ 
+
+data.chi <- read.csv(textConnection(c_data), header=T)
+
+df <- data.chi[,c(6,22)]
+
+df <- df[complete.cases(df),]
+
+df$Location <- as.character(df$Location)
+
+str(df)
+
+ 
+
+#extracting latitude and longitude values
+
+dataloc <- data.frame(lat = stri_extract_first(df$Location, regex = "\\d{1,}.\\d{1,}"),
+
+           lon = stri_extract_last(df$Location, regex = "\\-\\d{1,}.\\d{1,}"))
+
+#changing to numeric type
+
+dataloc$lat <- as.numeric(as.character(dataloc$lat))
+
+dataloc$lon <- as.numeric(as.character(dataloc$lon))
+
+ 
+
+#recreating data frame with latitude and longitude column
+
+fndata <- data.frame(cbind(df$Primary.Type,dataloc[]))
+
+finaldata <- fndata[complete.cases(dataloc),]
+
+str(finaldata)
+
+#subsetting data based on more violent crime
+
+dv.chicago <- finaldata[which(finaldata$df.Primary.Type == 'ASSAULT' | finaldata$df.Primary.Type =='ROBBERY'),]
+
+str(dv.chicago)
+
+ 
+
+#mapping with dayofweek
+
+map <- get_map('chicago', zoom = 15, maptype = 'roadmap')
+
+ggmap(map,extent = "device")+stat_density2d(
+
+aes(x = lon, y = lat, fill = ..level..,
+
+alpha = ..level..),
+
+size = 2, bins = 6, data = dv.chicago,
+
+geom = "polygon")
+
+```
+
+
+
+********
+
+### Mapping for West Coast City San Francisco (SFO)
+
+
+
+```{r sfochart, eval = T}
+
+ 
+
+#dat load and subsetting
+
+d <- getURL("https://raw.githubusercontent.com/bvshyam/Project3_cuny_607/master/Data/SFPD_Incidents_-_from_1_January_2003.csv", ssl.verifyhost=F, ssl.verifypeer=F)
+
+d <- read.csv(textConnection(d), header=T)
+
+ 
+
+d <- d[complete.cases(d),]
+
+d <- d[,c(2:6,10,11)]
+
+ 
+
+#changing column name
+
+colnames(d)[6]<- "lon"
+
+colnames(d)[7]<- "lat"
+
+str(d)
+
+ 
+
+#subsetting data based on more violent crime
+
+dv <- d[which(d$Category == 'ASSAULT' | d$Category =='ROBBERY'),]
+
+str(dv)
+
+#mapping with dayofweek
+
+map <- get_map('San Francisco', zoom = 12, maptype = 'roadmap')
+
+ggmap(map,extent = "device")+stat_density2d(
+
+aes(x = lon, y = lat, fill = ..level..,
+
+alpha = ..level..),
+
+size = 2, bins = 4, data = dv,
+
+geom = "polygon")+facet_wrap(~DayOfWeek)
+
+ 
+
+ 
+
+#mapping with area and legend
+
+ggmap(map,extent = "device", legend = "topleft")+stat_density2d(
+
+aes(x = lon, y = lat, fill = ..level..,
+
+alpha = ..level..),
+
+size = 2, bins = 6, data = dv,
+
+geom = "polygon")
+
+```
+
+
 
 ********
 
 
 
-********
+## Crime Compare for Major US Cities, West Coast SFO, East Coast NYC, Mid-West Chicago
 
 ### Loading Captured Crime Data From All Cities 
 
@@ -357,12 +835,13 @@ if(isIdCurrent(conn))
 {
      allcitycrimedata <-  dbGetQuery(conn,"select crimedata.citycode, offenseid, offense, offenselocaldate, offenselocaltime, dayofweek, offensehour, offensemonth, offensearea from crimedata, city where city.citycode = crimedata.citycode")
     
+}     
      
-     View(allcitycrimedata)
+#     View(allcitycrimedata)
     
      
-     action <- dbGetQuery(conn,"select distinct offense from crimedata where citycode='NYC'")
-
+# Categorizing the offenses at broad level
+# Adding Category column to data frame
         
      
  for (i in seq(1,nrow(allcitycrimedata),1)) 
@@ -420,14 +899,8 @@ if(isIdCurrent(conn))
      
  }      # end of for loop
       
-      
-#   ifany <- any(is.na(allcitycrimedata$category   ))
-      
      
-      #filter(mtcars, !grepl('Toyota|Mazda', type))
- }
-     
-     head(allcitycrimedata)
+datatable(allcitycrimedata)
      
 
 ```
@@ -437,8 +910,9 @@ if(isIdCurrent(conn))
 ********
 
 
-#### new df <- group by city and offense
-group by borough andwithin borough, group by offense
+### Data Manipulation And Plots For Crime Compare Across Cities
+
+Grouping data retrieved from database with group by city and within city, group by offense
 
  
 ```{r  tidy=TRUE, tidy.opts=list(width.cutoff=80),echo=TRUE}
@@ -449,7 +923,7 @@ datatable(crimedata_cityDF)
 ```
 
 
-# offense vs city
+### Plot Offense Vs Cities
 
 ```{r warning=FALSE, comment=FALSE, message=FALSE, tidy=TRUE, tidy.opts=list(width.cutoff=120), fig.width=10,fig.height=10}
 
@@ -458,16 +932,40 @@ ggplot(crimedata_cityDF, aes(x=crimedata_cityDF$citycode, y= crimedata_cityDF$to
 
 ```
 
+**Findings**
+From the bar plot of city compare for different offenses, we see that Chicago is highest in crime rate, almost double of San Francisco and more than double of that of New York City.
+Larceny is the highest offense in Chicago, followed by New York City .
+Chicago also leads in Burglary, and Sex Offenses
+Chicago leads in almost all types of crimes
+
+SFO has high of smaller crimes like suspicious activity, trespassing, non criminal offenses, stalking, deception, intereference, intimidation 
+San Francisco also leads in misconduct types of offenses, like obscenity, drunkeness, public indecency, DUI, driving related or Narcotic
+
+Safest City seems to be New York City area as comapred to San Francisco and Chicago.
 
 
-********
 
 
-### Close database connection     
+
+### Close database connection   
+
+
+
+```{r sfo-removetables,eval=TRUE,warning=FALSE,tidy=TRUE, tidy.opts=list(width.cutoff=80)}
+
+
+#remove SFO tables and variables
+
+remove(sf_crime_db,sf_crime_db_1,sf_crime,sf_day_offense,sfo_crime_hour,topcrimes,sfo_crimedata_hourDF,entdbtables,a,b,a1,b1,category_count,crimesbyday,mostcrimes,sf_crime.df,i,p,sf_crim.json,sf_crimedata)
+```
 
 ```{r tidy=TRUE, tidy.opts=list(width.cutoff=80), echo=TRUE}
        
 dbDisconnect(conn)
 
 #####################################################################
+```
+
+
+```{r child = 'MotivationAndApproach.Rmd'}
 ```
